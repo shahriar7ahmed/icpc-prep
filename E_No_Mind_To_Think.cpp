@@ -1,54 +1,69 @@
 #include <bits/stdc++.h>
 using namespace std;
+using ll = long long;
 
 int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
-    
-    int t;
-    cin >> t;
-    for (int test = 0; test < t; ++test) {
-        int n, k;
+    int T;
+    if (!(cin >> T)) return 0;
+    while (T--) {
+        int n;
+        ll k;
         cin >> n >> k;
-        vector<long long> a(n);
-        long long total_sum = 0;
+        vector<ll> a(n);
+        for (int i = 0; i < n; ++i) cin >> a[i];
+        sort(a.begin(), a.end());
+        vector<ll> pref(n + 1, 0);
+        for (int i = 0; i < n; ++i) pref[i+1] = pref[i] + a[i];
+        ll base = pref[n];
+        ll best = base; // at least original sum
+
         for (int i = 0; i < n; ++i) {
-            cin >> a[i];
-            total_sum += a[i];
-        }
-        vector<long long> b = a;
-        sort(b.begin(), b.end());
-        vector<long long> prefix(n + 1, 0);
-        for (int i = 1; i <= n; ++i) {
-            prefix[i] = prefix[i - 1] + b[i - 1];
-        }
-        long long max_sum = total_sum;
-        for (int x = 1; x <= n; x += 2) {
-            int m = (x + 1) / 2;
-            if (m > n) continue;
-            long long v = b[n - m];
-            // find number < v
-            auto it = lower_bound(b.begin(), b.end(), v);
-            int idx = it - b.begin();
-            int s = idx;
-            // number == v
-            int eq = 0;
-            if (idx < n && b[idx] == v) {
-                auto it2 = upper_bound(it, b.end(), v);
-                eq = it2 - it;
+            int left_count = i;           // number of elements strictly to the left
+            int right_count = n - 1 - i;  // number of elements strictly to the right
+            int y_max = min(left_count, right_count);
+            if (y_max == 0) continue; // no effect with y=0
+
+            auto gain_for_y = [&](int y) -> ll {
+                ll t = min<ll>(k * y, left_count); // number of left-most elements we can raise
+                // gain = ai*(t + y) - sum(first t) - sum(a[i+1 .. i+y])
+                ll ai = a[i];
+                ll left_sum = pref[t];
+                ll right_sum = pref[i + y + 1] - pref[i + 1];
+                return ai * (t + y) - left_sum - right_sum;
+            };
+
+            auto delta_for_y = [&](int y) -> ll {
+                // delta = gain(y) - gain(y-1), defined for y >= 1
+                ll ai = a[i];
+                ll t_prev = min<ll>(k * (y - 1), left_count);
+                ll t = min<ll>(k * y, left_count);
+                ll delta_t = t - t_prev;
+                ll sum_new_increases = pref[t] - pref[t_prev];
+                ll lost = a[i + y]; // the newly forced decreased element
+                // delta = ai*(delta_t + 1) - sum_new_increases - lost
+                return ai * (delta_t + 1) - sum_new_increases - lost;
+            };
+
+            // Binary search highest y in [1..y_max] with delta(y) > 0
+            int l = 1, r = y_max;
+            int found = 0;
+            while (l <= r) {
+                int mid = (l + r) / 2;
+                if (delta_for_y(mid) > 0) {
+                    found = mid; // mid is possible, try higher
+                    l = mid + 1;
+                } else {
+                    r = mid - 1;
+                }
             }
-            if (eq < m) continue;
-            int can_upgrade = min(s, k * (x - m));
-            if (can_upgrade > 0) {
-                // sum of smallest can_upgrade small elements
-                long long sum_small = prefix[can_upgrade];
-                long long increase = can_upgrade * 1LL * v - sum_small;
-                max_sum = max(max_sum, total_sum + increase);
-            } else {
-                max_sum = max(max_sum, total_sum);
-            }
+            int y_best = found; // 0 if none positive
+            ll gain = (y_best == 0 ? 0 : gain_for_y(y_best));
+            best = max(best, base + gain);
         }
-        cout << max_sum << '\n';
+
+        cout << best << '\n';
     }
     return 0;
 }
